@@ -207,19 +207,22 @@ Ident<out procName>         (.  tab.NewObj(procName, proc, undef);
                                     else SemErr("main not at lexic level 0");
                                 tab.OpenScope();
                             .)
-'('
-')'
-'{'
-{ ConstDecl }
-{ VarDecl }
-{ ProcDecl<progName> }      (.  if (procName == "main")
+'(' ')' '{'                 (.  if (procName == "main")
                                     gen.Label("Main", "Body");
                                 else {
                                     gen.ProcNameComment(procName);
                                     gen.Label(procName, "Body");
                                 }
                             .)
-{ Stat }
+{
+    ConstDecl
+    |
+    VarDecl
+    |
+    ProcDecl<progName>
+    |
+    Stat
+}
 '}'                         (.  if (procName == "main") {
                                     gen.StopProgram(progName);
                                     gen.Enter("Main", tab.curLevel, tab.topScope.nextAdr);
@@ -338,9 +341,7 @@ Ident<out name>         (.  obj = tab.Find(name); .)
     ]
     ';'
     |
-    '('
-    ')'
-    ';'                 (.  if (obj.kind == proc)
+    '(' ')' ';'         (.  if (obj.kind == proc)
                                 gen.Call(name);
                             else SemErr("object is not a procedure");
                         .)
@@ -424,9 +425,7 @@ Expr<out reg,
 ';'
 |
 '{'                     (.  tab.OpenSubScope(); .)
-{ ConstDecl }
-{ VarDecl }
-{ Stat }
+{ ConstDecl | VarDecl | Stat }
 '}'                     (.  tab.CloseSubScope(); .)
 |
 Switch
@@ -439,8 +438,7 @@ Tastier                 (.  string progName; .)
 "program"
 Ident<out progName>     (.  tab.OpenScope(); .)
 '{'
-{ ConstDecl }
-{ VarDecl }             // global variables
+{ (ConstDecl | VarDecl) }
 { ProcDecl<progName> }
 '}'                     (.  tab.CloseScope(); .)
 .
