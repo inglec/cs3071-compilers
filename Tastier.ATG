@@ -196,10 +196,9 @@ MulOp<out Op op>
 /*-------------------------------------------------------------------------------------------*/
 
 ProcDecl<string progName>
-                         (. Obj obj; string procName; .)
+                         (. string procName; .)
 = "void"
-  Ident<out procName>    (.
-                            obj = tab.NewObj(procName, proc, undef);
+  Ident<out procName>    (. tab.NewObj(procName, proc, undef);
                             if (procName == "main")
                                if (tab.curLevel == 0)
                                   tab.mainPresent = true;
@@ -421,6 +420,7 @@ Stat                     (. int type; string name; Obj obj; int reg, colReg = 7,
   { VarDecl }
   Stat { Stat }
   '}'                      (. tab.CloseSubScope(); .)
+| Switch
 .
 
 /*-------------------------------------------------------------------------------------------*/
@@ -464,24 +464,20 @@ Type<out int type>
 
 /*-------------------------------------------------------------------------------------------*/
 
-VarDecl                     (. Obj obj; string name; int type; int dims, size1, size2, start1, start2; .)
+VarDecl                     (. Obj obj; string name; int type; int dims, size1, size2; .)
 = Type<out type>
   Ident<out name>           (. obj = tab.NewObj(name, var, type); .)
   [
     ArrayDecl<out dims,
               out size1,
-              out size2,
-              out start1,
-              out start2>   (. tab.CreateArray(obj, dims, size1, size2, start1, start2); .)
+              out size2>    (. tab.CreateArray(obj, dims, size1, size2); .)
   ]
   { ','
     Ident<out name>         (. obj = tab.NewObj(name, var, type); .)
     [
       ArrayDecl<out dims,
                 out size1,
-                out size2,
-                out start1,
-                out start2> (. tab.CreateArray(obj, dims, size1, size2, start1, start2); .)
+                out size2>  (. tab.CreateArray(obj, dims, size1, size2); .)
     ]
 } ';'
 .
@@ -518,62 +514,72 @@ ConstDecl                (. string name; int type = undef, sign = 0, value = 0; 
 
 ArrayDecl<out int dims,
           out int size1,
-          out int size2,
-          out int start1,
-          out int start2> (.  String name; int start = -1, end = -1; Obj obj; .)
-= '['
+          out int size2> (.  String name; Obj obj;  .)
+= '['                    (.  size1 = 0; size2 = 0;  .)
   (
-    number               (.  start = Convert.ToInt32(t.val);  .)
+    number               (.  size1 = Convert.ToInt32(t.val);  .)
     |
     Ident<out name>      (.  obj = tab.Find(name);
                              if (obj.type == integer && obj.kind == cons)
-                                start = obj.value;
+                                size1 = obj.value;
                              else SemErr("Integer constant expected");
                          .)
   )
-  ".."
-  (
-    number               (.  end = Convert.ToInt32(t.val);  .)
-    |
-    Ident<out name>      (.  obj = tab.Find(name);
-                             if (obj.type == integer && obj.kind == cons)
-                                end = obj.value;
-                             else SemErr("Integer constant expected");
-                         .)
-  )
-
-                         (. size1 = end - start + 1;  .)
-                         (. size2 = 0;                .)
-                         (. start1 = start;           .)
-                         (. start2 = 0;               .)
-                         (. dims = 1;                 .)
+                         (. dims = 1; .)
   [
     ','
     (
-      number               (.  start = Convert.ToInt32(t.val);  .)
+      number               (.  size2 = Convert.ToInt32(t.val);  .)
       |
       Ident<out name>      (.  obj = tab.Find(name);
                                if (obj.type == integer && obj.kind == cons)
-                                  start = obj.value;
-                               else SemErr("Integer constant expected");
+                                  size2 = obj.value;
+                               else SemErr("Integer type expected");
                            .)
     )
-    ".."
-    (
-      number               (.  end = Convert.ToInt32(t.val);  .)
-      |
-      Ident<out name>      (.  obj = tab.Find(name);
-                               if (obj.type == integer && obj.kind == cons)
-                                  end = obj.value;
-                               else SemErr("Integer constant expected");
-                           .)
-    )
-
-                           (. size2 = end - start + 1;  .)
-                           (. start2 = start;           .)
-                           (. dims = 2;                 .)
+                           (. dims = 2; .)
   ]
   ']'
+.
+
+/*-------------------------------------------------------------------------------------------*/
+
+Switch                  (.  int reg, type; int endLabel = gen.NewLabel(); int nextCmp = gen.NewLabel(); int nextStats = gen.NewLabel(); .)
+= "switch"
+  '('
+  Expr<out reg,
+       out type>        (.  int switchType = type;
+                            int switchValue = gen.GetRegister()+1;  // R6
+                            gen.MoveRegister(switchValue, reg);
+                            gen.ClearRegisters();
+                        .)
+  ')'
+  '{'
+  {
+    "case"              (.  gen.Label(nextCmp); /* Next comparison */ .)
+    Expr<out reg,
+         out type>      (.  if (type != switchType)
+                                SemErr("Type mismatch");
+
+                            gen.RelOp(Op.EQU, reg, switchValue);
+                            nextCmp = gen.NewLabel();
+                            gen.BranchFalse(nextCmp);
+                        .)
+    ':'                 (.  gen.Label(nextStats); /* Next set of statements */ .)
+    { Stat }
+    [
+      "break" ';'       (.  gen.Branch(endLabel); .)
+    ]
+                        (.  nextStats = gen.NewLabel();
+                            gen.Branch(nextStats);      .)
+}
+                        (.  gen.Label(nextCmp);   .)
+                        (.  gen.Label(nextStats); .)
+  [
+    "default" ':'
+    { Stat }
+  ]
+  '}'                   (.  gen.Label(endLabel); .)
 .
 
 END Tastier.

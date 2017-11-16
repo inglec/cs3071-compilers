@@ -13,8 +13,6 @@ namespace Tastier {
         public int dims;    // dimensions of variable; 0 = scalar, 1 = 1D array, 2 = 2D array.
         public int size1;   // size of 1st dim.
         public int size2;   // size of 2nd dim.
-        public int start1;  // start index of 1st dim.
-        public int start2;  // start index of 2nd dim.
 
         public int level;   // lexic level: 0 = global; >= 1 local
         public int adr;     // address (displacement) in scope
@@ -147,19 +145,15 @@ namespace Tastier {
             return obj;
         }
 
-        public void CreateArray(Obj obj, int dims, int size1, int size2, int start1, int start2) {
+        public void CreateArray(Obj obj, int dims, int size1, int size2) {
             obj.dims = dims;
             obj.size1 = size1;
             obj.size2 = size2;
-            obj.start1 = start1;
-            obj.start2 = start2;
 
-            if (dims == 1) {
+            if (dims == 1)
                 topScope.nextAdr += size1 - 1;    // Allocate memory for 1D array.
-            }
-            else if (dims == 2) {
+            else if (dims == 2)
                 topScope.nextAdr += (size1 * size2) - 1;    // Allocate memory for 2D array.
-            }
         }
 
         // search for name in open scopes and return its object node
