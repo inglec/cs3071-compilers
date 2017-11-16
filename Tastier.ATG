@@ -201,19 +201,20 @@ ProcDecl<string progName>   (. string procName; .)
 =
 "void"
 Ident<out procName>         (.  tab.NewObj(procName, proc, undef);
-                                if (procName == "main")
+                                if (procName == "main") {
                                     if (tab.curLevel == 0)
                                         tab.mainPresent = true;
-                                    else SemErr("main not at lexic level 0");
-                                tab.OpenScope();
-                            .)
-'(' ')' '{'                 (.  if (procName == "main")
+                                    else
+                                        SemErr("main not at lexic level 0");
                                     gen.Label("Main", "Body");
+                                }
                                 else {
                                     gen.ProcNameComment(procName);
                                     gen.Label(procName, "Body");
                                 }
+                                tab.OpenScope();
                             .)
+'(' ')' '{'
 {
     ConstDecl
     |
