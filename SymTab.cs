@@ -145,6 +145,12 @@ namespace Tastier {
             return obj;
         }
 
+        public Obj NewConst(string name, int type, int value) {
+            Obj obj = NewObj(name, constant, type);
+            obj.value = value;
+            return obj;
+        }
+
         public void CreateArray(Obj obj, int dims, int size1, int size2) {
             obj.dims = dims;
             obj.size1 = size1;
