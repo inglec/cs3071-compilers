@@ -220,9 +220,9 @@ Ident<out procName>         (.  tab.NewObj(procName, proc, undef);
     |
     VarDecl
     |
-    ProcDecl<progName>
-    |
     Stat
+    |
+    ProcDecl<progName>
 }
 '}'                         (.  if (procName == "main") {
                                     gen.StopProgram(progName);
@@ -439,7 +439,7 @@ Tastier                 (.  string progName; .)
 "program"
 Ident<out progName>     (.  tab.OpenScope(); .)
 '{'
-{ (ConstDecl | VarDecl) }
+{ ConstDecl | VarDecl } // Globals
 { ProcDecl<progName> }
 '}'                     (.  tab.CloseScope(); .)
 .
@@ -565,14 +565,12 @@ Switch                  (.  int reg, type;
                         .)
 =
 "switch"
-'('
 Expr<out reg,
      out type>          (.  int switchType = type;
                             int switchValue = gen.GetRegister()+1;  // R6
                             gen.MoveRegister(switchValue, reg);
                             gen.ClearRegisters();
                         .)
-')'
 '{'
 {
     "case"              (.  gen.Label(nextCmp); .)
