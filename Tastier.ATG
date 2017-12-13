@@ -381,6 +381,8 @@ Stat                    (.  gen.Branch(l1);
                             gen.Label(l2);
                         .)
 |
+ForLoop
+|
 "read"
 Ident<out name>
 ';'                     (.  obj = tab.Find(name);
@@ -564,7 +566,7 @@ Switch                  (.  int reg, type;
                             int nextStats = gen.NewLabel(); // Next set of statements. (For fallthrough)
                         .)
 =
-"switch"
+"switch"                (.  Console.WriteLine("; Start of switch statement."); .)
 Expr<out reg,
      out type>          (.  int switchType = type;
                             int switchValue = gen.GetRegister()+1;  // R6
@@ -599,6 +601,124 @@ Expr<out reg,
     { Stat }
 ]
 '}'                     (.  gen.Label(endLabel); .)
+                        (.  Console.WriteLine("; End of switch statement."); .)
 .
+
+ForLoop                 (.  bool increasing = true;
+                            int num1 = 0, num2 = 0;
+                            int step = 1;
+                            String name;
+                            Obj obj;
+                            int reg1, reg2; // reg storing num1 & num2
+                        .)
+=
+"for"                   (.  Console.WriteLine("; For loop declaration."); .)
+number                  (.  num1 += Convert.ToInt32(t.val); .)
+(
+    (                   (.  increasing = true; .)
+        '<'             (.  num1++; .)
+        |
+        "<="
+    )
+    |
+    (                   (.  increasing = false; .)
+        '>'             (.  num1--; .)
+        |
+        ">="
+    )
+)
+Ident<out name>         (.  // Store num1 in counter
+                            obj = tab.Find(name);
+                            if (obj.type == integer) {
+                                reg1 = gen.GetRegister();
+                                gen.LoadConstant(reg1, num1);
+
+                                if (obj.level == 0)
+                                    gen.StoreGlobal(reg1, obj.adr, name);
+                                else
+                                    gen.StoreLocal(reg1, tab.curLevel-obj.level, obj.adr, name);
+
+                                gen.ClearRegisters();
+                            }
+                            else SemErr("integer type expected");
+                        .)
+(
+    (                   (.  if (!increasing)
+                                SemErr("Conflicting operators. > or >= expected after identifier.");
+                        .)
+        '<'             (.  num2--; .)
+        |
+        "<="
+    )
+    |
+    (                   (.  if (increasing)
+                                SemErr("Conflicting operators. < or <= expected after identifier.");
+                        .)
+        '>'             (.  num2++; .)
+        |
+        ">="
+    )
+)
+number                  (.  num2 += Convert.ToInt32(t.val);
+
+                            Console.WriteLine("; Start of for loop.");
+                            int startLabel = gen.NewLabel();
+                            gen.Label(startLabel);
+
+                            // Load counter into reg1 and num2 into reg2
+                            reg1 = gen.GetRegister();
+                            reg2 = gen.GetRegister();
+
+                            if (obj.level == 0)
+                                gen.LoadGlobal(reg1, obj.adr, name);
+                            else
+                                gen.LoadLocal(reg1, tab.curLevel-obj.level, obj.adr, name);
+                            gen.LoadConstant(reg2, num2);
+
+                            int endLabel = gen.NewLabel();
+                            if (increasing)
+                                gen.RelOp(Op.GTR, reg1, reg2);
+                            else
+                                gen.RelOp(Op.LSS, reg1, reg2);
+                            gen.BranchTrue(endLabel);
+                            gen.ClearRegisters();
+
+                            Console.WriteLine("; Statements:");
+                        .)
+[
+    "step"
+    number              (.  step = Convert.ToInt32(t.val); .)
+]
+'{'
+{ Stat }
+'}'                     (.  Console.WriteLine("; Update counter.");
+
+                            reg1 = gen.GetRegister();
+                            if (obj.level == 0)
+                                gen.LoadGlobal(reg1, obj.adr, name);
+                            else
+                                gen.LoadLocal(reg1, tab.curLevel-obj.level, obj.adr, name);
+
+                            int temp = gen.GetRegister();
+                            gen.LoadConstant(temp, step);
+                            if (increasing)
+                                gen.AddOp(Op.ADD, reg1, temp);
+                            else
+                                gen.AddOp(Op.SUB, reg1, temp);
+
+                            if (obj.level == 0)
+                                gen.StoreGlobal(reg1, obj.adr, name);
+                            else
+                                gen.StoreLocal(reg1, tab.curLevel-obj.level, obj.adr, name);
+
+                            gen.ClearRegisters();
+
+                            gen.Branch(startLabel);
+                            Console.WriteLine("; End of for loop.");
+                            gen.Label(endLabel);
+                        .)
+.
+
+
 
 END Tastier.
