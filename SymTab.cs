@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace Tastier {
     public class Obj { // properties of declared symbol
@@ -8,11 +9,15 @@ namespace Tastier {
 
         // Constant attributes.
         public int value;   // value if kind == constant
+        public string instance;
 
         // Array attributes.
         public int dims;    // dimensions of variable; 0 = scalar, 1 = 1D array, 2 = 2D array.
         public int size1;   // size of 1st dim.
         public int size2;   // size of 2nd dim.
+
+        // new type member variables
+        public LinkedList<Obj> members;
 
         public int level;   // lexic level: 0 = global; >= 1 local
         public int adr;     // address (displacement) in scope
@@ -31,8 +36,8 @@ namespace Tastier {
         String[] kinds = {"var", "proc", "scope", "const"};  //String representation of values.
 
         // variable / constant types
-        const int undef = 0, integer = 1, boolean = 2;
-        String[] types = {"undef", "int", "bool"};  //String representation of values.
+        const int undef = 0, integer = 1, boolean = 2, new_type = 3, new_type_instance = 4;
+        String[] types = {"undef", "int", "bool", "new type", "new type instance"};  //String representation of values.
 
         public Obj topScope; // topmost procedure scope
         public int curLevel; // nesting level of current scope
@@ -112,6 +117,10 @@ namespace Tastier {
 
         // create new object node in current scope
         public Obj NewObj(string name, int kind, int type) {
+            return NewObj(name, kind, type, "");
+        }
+
+        public Obj NewObj(string name, int kind, int type, string instance) {
             Obj obj = new Obj();
             obj.name = name;
             obj.kind = kind;
@@ -119,29 +128,56 @@ namespace Tastier {
             obj.dims = 0;
             obj.level = curLevel;
             obj.next = null;
+            obj.instance = instance;
 
             Obj p = topScope.locals;
             Obj last = null;
             while (p != null) {
-                if (p.name == name) {
+                if (p.name == name && p.instance == instance)
                     parser.SemErr("name declared twice");
-                }
                 last = p;
                 p = p.next;
             }
 
             //Add new object to end of linked list locals
-            if (last == null) {
+            if (last == null)
                 topScope.locals = obj;
-            }
-            else {
+            else
                 last.next = obj;
-            }
 
             //set variable address to next free stack address
-            if (kind == var) {
+            if (kind == var)
                 obj.adr = topScope.nextAdr++;
+
+            if (type == new_type)
+                obj.members = new LinkedList<Obj>();
+
+            return obj;
+        }
+
+        /**
+         * Add a member object to the new type
+         */
+        public Obj NewMemberObj(Obj obj, string name, int kind, int type) {
+            Obj member = NewObj(name, kind, type, obj.name);
+            obj.members.AddLast(member);   // Push new member to end of linked list.
+
+            return member;
+        }
+
+        public Obj NewInstance(string new_type, string instance) {
+            Obj typeObj = Find(new_type);
+
+            Obj obj = NewObj(instance, var, new_type_instance);
+
+            // Copy members from new type to instance.
+            obj.members = new LinkedList<Obj>();
+            foreach (Obj member in typeObj.members) {
+                Obj copy = NewObj(member.name, member.kind, member.type, instance);
+                copy.level = obj.level; // Give locals same scope as instance
+                obj.members.AddLast(copy);
             }
+
             return obj;
         }
 
@@ -169,15 +205,22 @@ namespace Tastier {
             while (scope != null) { // for all open scopes
                 obj = scope.locals;
                 while (obj != null) { // for all objects in this scope
-                    if (obj.name == name) {
+                    if (obj.name == name && obj.instance == "")
                         return obj;
-                    }
                     obj = obj.next;
                 }
                 scope = scope.outer;
             }
             parser.SemErr(name + " is undeclared");
             return undefObj;
+        }
+
+        public Obj FindMember(Obj instance, string name) {
+            foreach (Obj member in instance.members)
+                if (name == member.name)
+                    return member;
+
+            return null;
         }
 
     } // end SymbolTable

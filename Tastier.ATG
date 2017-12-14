@@ -4,7 +4,7 @@ COMPILER Tastier
         var = 0, proc = 1, cons = 3;
 
     const int // types
-        undef = 0, integer = 1, boolean = 2;
+        undef = 0, integer = 1, boolean = 2, new_type = 3, new_type_instance = 4;
 
     public SymbolTable tab;
     public CodeGenerator gen;
@@ -70,78 +70,102 @@ SimExpr<out reg,
 
 /*-------------------------------------------------------------------------------------------*/
 
-Primary<out int reg,    // load Primary into register
-        out int type>   (.  int n; Obj obj; string name;
-                            int dims = 0; int colReg = 7, indexReg = 8; // Array-specific variables.
-                        .)
-=                       (.  type = undef;
-                            reg = gen.GetRegister();
-                        .)
+Primary<out int reg,        // load Primary into register
+        out int type>       (.  int n; Obj obj; string name;
+                                int dims = 0; int colReg = 7, indexReg = 8; // Array-specific variables.
+
+                                type = undef;
+                                reg = gen.GetRegister();
+                            .)
+=
 (
-    Ident<out name>
-    [
-        '['
-        Expr<out reg,
-             out type>  (.  dims = 1;
-                            if (type == integer) {
-                                gen.MoveRegister(colReg, reg); // R7 holds column.
-                            }
-                            else SemErr("Integer type expected");
-                        .)
-        [
-            ','
-            Expr<out reg,
-                 out type>  (.  dims = 2;
-                                if (type == integer) {
-                                    // index = row * no_cols + col
-                                    obj = tab.Find(name);
-                                    gen.LoadConstant(indexReg, obj.size1); // index = no_cols;
-                                    gen.MulOp(Op.MUL, indexReg, reg);      // index = index * row;
-                                    gen.AddOp(Op.ADD, indexReg, colReg);   // index = index + col;
-                                }
-                                else SemErr("Integer type expected");
-                            .)
-        ]
-        ']'                 (.  if (dims == 1) {
-                                    gen.MoveRegister(indexReg, colReg);
-                                }
-                            .)
-    ]
-                            (.  obj = tab.Find(name); type = obj.type;
-                                    if (obj.kind == var) {
-                                        if (dims == 0) {
-                                            if (obj.level == 0)
-                                                gen.LoadGlobal(reg, obj.adr, name);
-                                            else
-                                                gen.LoadLocal(reg, tab.curLevel-obj.level, obj.adr, name);
-                                        }
-                                        else { // if (dims == 1 || dims == 2)
-                                            if (obj.level == 0)
-                                                gen.LoadIndexedGlobal(reg, obj.adr, indexReg, name);
-                                            else
-                                                gen.LoadIndexedLocal(reg, tab.curLevel-obj.level, obj.adr, indexReg, name);
-                                        }
-                                        if (type == boolean)
-                                            gen.ResetZ(reg); // reset Z flag in CPSR
+    Ident<out name>             (.  obj = tab.Find(name); .)
+    (
+        (                       // Accessing member variable of a new type
+            '.'
+            Ident<out name>     (.  if (obj.type != new_type_instance)
+                                        SemErr("new type instance expected.");
+
+                                    Obj member = tab.FindMember(obj, name);
+                                    if (member == null)
+                                        SemErr("instance member " + name + " does not exist.");
+
+                                    type = member.type;
+
+                                    if (member.level == 0)
+                                        gen.LoadGlobal(reg, member.adr, name);
+                                    else
+                                        gen.LoadLocal(reg, tab.curLevel-member.level, member.adr, name);
+                                .)
+        )
+        |
+        (                       // Accessing array index
+            [
+                '['
+                Expr<out reg,
+                     out type>  (.  dims = 1;
+                                    if (type == integer) {
+                                        gen.MoveRegister(colReg, reg); // R7 holds column.
                                     }
-                                    else if (obj.kind == cons) {
-                                        if (obj.type == integer) {
-                                            type = integer;
-                                            gen.LoadConstant(reg, obj.value);
+                                    else SemErr("Integer type expected");
+                                .)
+                [
+                    ','
+                    Expr<out reg,
+                         out type>  (.  dims = 2;
+                                        if (type == integer) {
+                                            // index = row * no_cols + col
+                                            obj = tab.Find(name);
+                                            gen.LoadConstant(indexReg, obj.size1); // index = no_cols;
+                                            gen.MulOp(Op.MUL, indexReg, reg);      // index = index * row;
+                                            gen.AddOp(Op.ADD, indexReg, colReg);   // index = index + col;
                                         }
-                                    else if (obj.type == boolean) {
-                                        type = boolean;
-                                        if (obj.value == 1)
-                                            gen.LoadTrue(reg);
-                                        else
-                                            gen.LoadFalse(reg);
-                                    }
-                                }
-                                else SemErr("variable or constant expected");
-                            .)
+                                        else SemErr("Integer type expected");
+                                    .)
+                ]
+                ']'                 (.  if (dims == 1) {
+                                            gen.MoveRegister(indexReg, colReg);
+                                        }
+                                    .)
+            ]
+                                    (.  type = obj.type;
+                                        // Variables
+                                        if (obj.kind == var) {
+                                            if (dims == 0) {
+                                                if (obj.level == 0)
+                                                    gen.LoadGlobal(reg, obj.adr, name);
+                                                else
+                                                    gen.LoadLocal(reg, tab.curLevel-obj.level, obj.adr, name);
+                                            }
+                                            else { // if (dims == 1 || dims == 2)
+                                                if (obj.level == 0)
+                                                    gen.LoadIndexedGlobal(reg, obj.adr, indexReg, name);
+                                                else
+                                                    gen.LoadIndexedLocal(reg, tab.curLevel-obj.level, obj.adr, indexReg, name);
+                                            }
+                                            if (type == boolean)
+                                                gen.ResetZ(reg); // reset Z flag in CPSR
+                                        }
+                                        // Constants
+                                        else if (obj.kind == cons) {
+                                            if (obj.type == integer) {
+                                                type = integer;
+                                                gen.LoadConstant(reg, obj.value);
+                                            }
+                                            else if (obj.type == boolean) {
+                                                type = boolean;
+                                                if (obj.value == 1)
+                                                    gen.LoadTrue(reg);
+                                                else
+                                                    gen.LoadFalse(reg);
+                                            }
+                                        }
+                                        else SemErr("variable or constant expected");
+                                    .)
+        )
+    )
     |
-    number                  (.
-                            type = integer;
+    number              (.  type = integer;
                             n = Convert.ToInt32(t.val);
                             gen.LoadConstant(reg, n);
                          .)
@@ -220,6 +244,10 @@ Ident<out procName>         (.  tab.NewObj(procName, proc, undef);
     |
     VarDecl
     |
+    NewTypeDecl
+    |
+    NewTypeInstance
+    |
     Stat
     |
     ProcDecl<progName>
@@ -278,13 +306,22 @@ Stat                    (.  int type; string name; Obj obj; int reg, colReg = 7,
 =
 Ident<out name>         (.  obj = tab.Find(name); .)
 [
+'.'
+Ident<out name>         (.  if (obj.type != new_type_instance)
+                                SemErr("new type instance expected.");
+
+                            obj = tab.FindMember(obj, name);
+                            if (obj == null)
+                                SemErr("instance member " + name + " does not exist.");
+                        .)
+]
+[
     '['
     Expr<out reg,
          out type>      (.  int dims = 1;
-                                if (type == integer) {
-                                    gen.MoveRegister(colReg, reg); // R7 holds column.
-                                }
-                                else SemErr("Integer type expected");
+                            if (type == integer)
+                                gen.MoveRegister(colReg, reg); // R7 holds column.
+                            else SemErr("Integer type expected");
                         .)
     [
         ','
@@ -299,9 +336,8 @@ Ident<out name>         (.  obj = tab.Find(name); .)
                             else SemErr("Integer type expected");
                         .)
     ]
-    ']'                 (.  if (dims == 1) {
+    ']'                 (.  if (dims == 1)
                                 gen.MoveRegister(indexReg, colReg);
-                            }
                         .)
 ]
 (
@@ -428,7 +464,7 @@ Expr<out reg,
 ';'
 |
 '{'                     (.  tab.OpenSubScope(); .)
-{ ConstDecl | VarDecl | Stat }
+{ ConstDecl | VarDecl | NewTypeDecl | NewTypeInstance | Stat }
 '}'                     (.  tab.CloseSubScope(); .)
 |
 Switch
@@ -441,7 +477,7 @@ Tastier                 (.  string progName; .)
 "program"
 Ident<out progName>     (.  tab.OpenScope(); .)
 '{'
-{ ConstDecl | VarDecl } // Globals
+{ ConstDecl | VarDecl | NewTypeDecl | NewTypeInstance } // Globals
 { ProcDecl<progName> }
 '}'                     (.  tab.CloseScope(); .)
 .
@@ -475,7 +511,14 @@ Type<out int type>
 .
 
 /*-------------------------------------------------------------------------------------------*/
-
+/**
+ * Declare new variables of type integer or boolean. Can be arrays.
+ *
+ * EXAMPLE:
+ *    int x;
+ *    bool a, b;
+ *    int arr[5][4];
+ */
 VarDecl                         (.  string name; int type;
                                     int dims, size1, size2;   // Array-specific variables.
                                 .)
@@ -500,14 +543,21 @@ Ident<out name>                 (.  Obj obj = tab.NewObj(name, var, type); .)
 .
 
 /*-------------------------------------------------------------------------------------------*/
-
+/**
+ * Declare a constant integer or boolean.
+ *
+ * EXAMPLE:
+ *    const x = 5;
+ *    const y = true;
+ */
 ConstDecl               (.  string name; int type = undef, value = 0; .)
 =
 "const"
 Ident<out name>
 '='
 (
-    (                   (.  int sign = +1; .)
+    (                   // INTEGER TYPE
+                        (.  int sign = +1; .)
         [
             '-'         (.  sign = -1; .)
         ]
@@ -515,7 +565,7 @@ Ident<out name>
                             type = integer;
                         .)
     )
-    |
+    |                   // BOOLEAN TYPE
     "true"              (.  value = 1; // 1 = true
                             type = boolean;
                         .)
@@ -523,32 +573,38 @@ Ident<out name>
     "false"             (.  value = 0; // 0 = false
                             type = boolean;
                         .)
-)                       (.  tab.NewConst(name, type, value); .)
+)                       (.  tab.NewConst(name, type, value); .) // Create constant
 ';'
 .
 
 /*-------------------------------------------------------------------------------------------*/
-
+/**
+ * Determine the dimensions of an array.
+ *
+ * [10]   => dims = 1, size1 = 5, size2 = 0
+ * [5, 2] => dims = 2, size1 = 5, size2 = 2
+ */
 ArrayDecl<out int dims,
           out int size1,
           out int size2>    (.  String name; Obj obj; .)
 =
-'['                         (.  size1 = 0; size2 = 0; .)
+'['                         // 1D ARRAY SO FAR
+                            (.  size1 = 0; size2 = 0; .)
 (
     number                  (.  size1 = Convert.ToInt32(t.val); .)
     |
-    Ident<out name>         (.  obj = tab.Find(name);
+    Ident<out name>         (.  obj = tab.Find(name); // Get constant from symbol table.
                                 if (obj.type == integer && obj.kind == cons)
                                     size1 = obj.value;
                                 else SemErr("Integer constant expected");
                             .)
 )                           (.  dims = 1; .)
 [
-    ','
+    ','                     // 2D ARRAY
     (
         number              (.  size2 = Convert.ToInt32(t.val); .)
         |
-        Ident<out name>     (.  obj = tab.Find(name);
+        Ident<out name>     (.  obj = tab.Find(name); // Get constant from symbol table.
                                 if (obj.type == integer && obj.kind == cons)
                                     size2 = obj.value;
                                 else SemErr("Integer type expected");
@@ -559,18 +615,38 @@ ArrayDecl<out int dims,
 .
 
 /*-------------------------------------------------------------------------------------------*/
-
+/**
+ * Create a switch / case statement.
+ *
+ * EXAMPLE:
+ *    int x;
+ *    x := 5;
+ *
+ *    switch x {
+ *       case 1:
+ *          write "1\n";
+ *          break;
+ *       case 2:
+ *          write "2\n";
+ *          write "falling through\n";
+ *       case 3:
+ *          write "3\n";
+ *          break;
+ *       default:
+ *          write "default\n";
+ *    }
+ */
 Switch                  (.  int reg, type;
                             int endLabel  = gen.NewLabel(); // End of switch statement. (For break;)
                             int nextCmp   = gen.NewLabel(); // Next case to be checked. (For failed comparison)
-                            int nextStats = gen.NewLabel(); // Next set of statements. (For fallthrough)
+                            int nextStats = gen.NewLabel(); // Next set of statements.  (For fallthrough)
                         .)
 =
 "switch"                (.  Console.WriteLine("; Start of switch statement."); .)
 Expr<out reg,
      out type>          (.  int switchType = type;
                             int switchValue = gen.GetRegister()+1;  // R6
-                            gen.MoveRegister(switchValue, reg);
+                            gen.MoveRegister(switchValue, reg); // Store value to check for each case
                             gen.ClearRegisters();
                         .)
 '{'
@@ -580,6 +656,7 @@ Expr<out reg,
          out type>      (.  if (type != switchType)
                                 SemErr("Type mismatch");
 
+                            // Branch to next case if false
                             gen.RelOp(Op.EQU, reg, switchValue);
                             nextCmp = gen.NewLabel();
                             gen.BranchFalse(nextCmp);
@@ -593,21 +670,34 @@ Expr<out reg,
                             gen.Branch(nextStats);
                         .)
 }
-                        (.  gen.Label(nextCmp); // If no more cases, branch to before optional "default:"
+                        (.  gen.Label(nextCmp); // If no more cases, branch to optional "default:"
                             gen.Label(nextStats);
                         .)
-[
+[   // Optional default case
     "default" ':'
     { Stat }
 ]
-'}'                     (.  gen.Label(endLabel); .)
-                        (.  Console.WriteLine("; End of switch statement."); .)
+'}'                     (.  gen.Label(endLabel);
+                            Console.WriteLine("; End of switch statement.");
+                        .)
 .
 
-ForLoop                 (.  bool increasing = true;
-                            int num1 = 0, num2 = 0;
-                            int step = 1;
-                            String name;
+/*-------------------------------------------------------------------------------------------*/
+/**
+ * Create a for loop.
+ *
+ * EXAMPLE:                       * C SYNTAX:
+ *    int i;                      *    int i;
+ *    for 0 <= i < 10 step 2 {    *    for (i = 0; i < 10; i+=2) {
+ *       writeln i;               *       printf("%d\n", i);
+ *    }                           *    }
+ *                                *
+ */
+
+ForLoop                 (.  bool increasing = true; // true = increment counter, false = decrement counter.
+                            int num1 = 0, num2 = 0; // num1 <= x <= num2
+                            int step = 1; // Increment by 1 by default
+                            String name;  // Counter ident
                             Obj obj;
                             int reg1, reg2; // reg storing num1 & num2
                         .)
@@ -615,19 +705,19 @@ ForLoop                 (.  bool increasing = true;
 "for"                   (.  Console.WriteLine("; For loop declaration."); .)
 number                  (.  num1 += Convert.ToInt32(t.val); .)
 (
-    (                   (.  increasing = true; .)
+    (                   (.  increasing = true; .) // Increment counter by step.
         '<'             (.  num1++; .)
         |
         "<="
     )
     |
-    (                   (.  increasing = false; .)
+    (                   (.  increasing = false; .) // Decrement counter by step.
         '>'             (.  num1--; .)
         |
         ">="
     )
 )
-Ident<out name>         (.  // Store num1 in counter
+Ident<out name>         (.  // Set counter to num1
                             obj = tab.Find(name);
                             if (obj.type == integer) {
                                 reg1 = gen.GetRegister();
@@ -665,17 +755,17 @@ number                  (.  num2 += Convert.ToInt32(t.val);
                             int startLabel = gen.NewLabel();
                             gen.Label(startLabel);
 
-                            // Load counter into reg1 and num2 into reg2
-                            reg1 = gen.GetRegister();
-                            reg2 = gen.GetRegister();
-
+                            reg1 = gen.GetRegister(); // Store counter
                             if (obj.level == 0)
                                 gen.LoadGlobal(reg1, obj.adr, name);
                             else
                                 gen.LoadLocal(reg1, tab.curLevel-obj.level, obj.adr, name);
+
+                            reg2 = gen.GetRegister(); // Store num2
                             gen.LoadConstant(reg2, num2);
 
                             int endLabel = gen.NewLabel();
+                            // Branch if counter passes num2
                             if (increasing)
                                 gen.RelOp(Op.GTR, reg1, reg2);
                             else
@@ -693,19 +783,24 @@ number                  (.  num2 += Convert.ToInt32(t.val);
 { Stat }
 '}'                     (.  Console.WriteLine("; Update counter.");
 
+                            // Load counter into reg1
                             reg1 = gen.GetRegister();
                             if (obj.level == 0)
                                 gen.LoadGlobal(reg1, obj.adr, name);
                             else
                                 gen.LoadLocal(reg1, tab.curLevel-obj.level, obj.adr, name);
 
+                            // Load step into reg
                             int temp = gen.GetRegister();
                             gen.LoadConstant(temp, step);
+
+                            // Add step to counter
                             if (increasing)
                                 gen.AddOp(Op.ADD, reg1, temp);
                             else
                                 gen.AddOp(Op.SUB, reg1, temp);
 
+                            // Store reg back into counter
                             if (obj.level == 0)
                                 gen.StoreGlobal(reg1, obj.adr, name);
                             else
@@ -713,12 +808,64 @@ number                  (.  num2 += Convert.ToInt32(t.val);
 
                             gen.ClearRegisters();
 
+                            // Branch to start
                             gen.Branch(startLabel);
                             Console.WriteLine("; End of for loop.");
                             gen.Label(endLabel);
                         .)
 .
 
+/*-------------------------------------------------------------------------------------------*/
+/**
+ * Create a new user-defined data type.
+ *
+ * EXAMPLE:
+ *    type Person {
+ *       int age, height;
+ *       bool male;
+ *    }
+ */
+NewTypeDecl
+=
+"type"                              (.  string name, var_name; int type; .)
+Ident<out name>                     (.  Obj type_obj = tab.NewObj(name, var, new_type); .) // New data type.
+'{'
+{
+    Type<out type>                  // Define member variables of new data type.
+    Ident<out var_name>             (.  tab.NewMemberObj(type_obj, var_name, var, type); .)
+    {
+        ','
+        Ident<out var_name>         (.  tab.NewMemberObj(type_obj, var_name, var, type); .)
+    }
+    ';'
+}
+'}'
+.
 
+/*-------------------------------------------------------------------------------------------*/
+/**
+ * Create a new instance of a user-defined data type.
+ *
+ * EXAMPLE:
+ *    type Person {
+ *       int age, height;
+ *       bool male;
+ *    }
+ *
+ *    new Person stephen, david, brian;
+ */
+NewTypeInstance         (.  string new_type, instance; .)
+=
+"new"
+Ident<out new_type>     // User-defined data type, defined prior to now.
+Ident<out instance>     (.  tab.NewInstance(new_type, instance); .)
+{
+    ','
+    Ident<out instance> (.  tab.NewInstance(new_type, instance); .)
+}
+';'
+.
+
+/*-------------------------------------------------------------------------------------------*/
 
 END Tastier.
