@@ -70,7 +70,7 @@ SimExpr<out reg,
 
 /*-------------------------------------------------------------------------------------------*/
 
-Primary<out int reg,        // load Primary into register
+Primary<out int reg,        // Load Primary into register
         out int type>       (.  int n; Obj obj; string name;
                                 int dims = 0; int colReg = 7, indexReg = 8; // Array-specific variables.
 
@@ -81,7 +81,7 @@ Primary<out int reg,        // load Primary into register
 (
     Ident<out name>             (.  obj = tab.Find(name); .)
     (
-        (                       // Accessing member variable of a new type
+        (                       // Access member variable of a new type
             '.'
             Ident<out name>     (.  if (obj.type != new_type_instance)
                                         SemErr("new type instance expected.");
@@ -99,7 +99,7 @@ Primary<out int reg,        // load Primary into register
                                 .)
         )
         |
-        (                       // Accessing array index
+        (                       // 1D array access
             [
                 '['
                 Expr<out reg,
@@ -110,11 +110,11 @@ Primary<out int reg,        // load Primary into register
                                     else SemErr("Integer type expected");
                                 .)
                 [
-                    ','
+                    ','             // 2D array access
                     Expr<out reg,
                          out type>  (.  dims = 2;
                                         if (type == integer) {
-                                            // index = row * no_cols + col
+                                            // index = (row * no_cols) + col
                                             obj = tab.Find(name);
                                             gen.LoadConstant(indexReg, obj.size1); // index = no_cols;
                                             gen.MulOp(Op.MUL, indexReg, reg);      // index = index * row;
@@ -123,21 +123,20 @@ Primary<out int reg,        // load Primary into register
                                         else SemErr("Integer type expected");
                                     .)
                 ]
-                ']'                 (.  if (dims == 1) {
+                ']'                 (.  if (dims == 1)
                                             gen.MoveRegister(indexReg, colReg);
-                                        }
                                     .)
             ]
                                     (.  type = obj.type;
                                         // Variables
                                         if (obj.kind == var) {
-                                            if (dims == 0) {
+                                            if (dims == 0) { // if scalar value
                                                 if (obj.level == 0)
                                                     gen.LoadGlobal(reg, obj.adr, name);
                                                 else
                                                     gen.LoadLocal(reg, tab.curLevel-obj.level, obj.adr, name);
                                             }
-                                            else { // if (dims == 1 || dims == 2)
+                                            else { // if array
                                                 if (obj.level == 0)
                                                     gen.LoadIndexedGlobal(reg, obj.adr, indexReg, name);
                                                 else
@@ -250,7 +249,7 @@ Ident<out procName>         (.  tab.NewObj(procName, proc, undef);
     |
     Stat
     |
-    ProcDecl<progName>
+    ProcDecl<procName>
 }
 '}'                         (.  if (procName == "main") {
                                     gen.StopProgram(progName);
@@ -706,18 +705,22 @@ ForLoop                 (.  bool increasing = true; // true = increment counter,
 number                  (.  num1 += Convert.ToInt32(t.val); .)
 (
     (                   (.  increasing = true; .) // Increment counter by step.
-        '<'             (.  num1++; .)
-        |
-        "<="
+        (
+            '<'         (.  num1++; .)
+            |
+            "<="
+        )
     )
     |
     (                   (.  increasing = false; .) // Decrement counter by step.
-        '>'             (.  num1--; .)
-        |
-        ">="
+        (
+            '>'         (.  num1--; .)
+            |
+            ">="
+        )
     )
 )
-Ident<out name>         (.  // Set counter to num1
+Ident<out name>         (.  // Set counter variable to num1
                             obj = tab.Find(name);
                             if (obj.type == integer) {
                                 reg1 = gen.GetRegister();
@@ -736,17 +739,21 @@ Ident<out name>         (.  // Set counter to num1
     (                   (.  if (!increasing)
                                 SemErr("Conflicting operators. > or >= expected after identifier.");
                         .)
-        '<'             (.  num2--; .)
-        |
-        "<="
+        (
+            '<'         (.  num2--; .)
+            |
+            "<="
+        )
     )
     |
     (                   (.  if (increasing)
                                 SemErr("Conflicting operators. < or <= expected after identifier.");
                         .)
-        '>'             (.  num2++; .)
-        |
-        ">="
+        (
+            '>'         (.  num2++; .)
+            |
+            ">="
+        )
     )
 )
 number                  (.  num2 += Convert.ToInt32(t.val);
@@ -776,7 +783,7 @@ number                  (.  num2 += Convert.ToInt32(t.val);
                             Console.WriteLine("; Statements:");
                         .)
 [
-    "step"
+    "step"              // Number to increment / decrement counter by
     number              (.  step = Convert.ToInt32(t.val); .)
 ]
 '{'
