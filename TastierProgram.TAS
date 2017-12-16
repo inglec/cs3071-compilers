@@ -1,0 +1,63 @@
+program Test {
+    int x;
+
+    type Person {
+        int age;
+        bool male;
+    }
+
+    new Person brian, nick;
+
+    int age;
+
+    void printVariables() {
+        write "x = ";          writeln x;
+        write "brian.age = ";  writeln brian.age;
+        write "nick.age = ";   writeln nick.age;
+        write "age = ";        writeln age;
+        write "brian.male = "; writeln brian.male;
+    }
+
+    void runForLoops() {
+        int i;
+        write "running for loop from 0 to 9, step 1\n";
+        for 0 <= i < 10 {
+            writeln i;
+        }
+        write "for loop complete\n";
+
+        write "running for loop from 10 to 1, step 1\n";
+        for 10 >= i > 0 {
+            writeln i;
+        }
+        write "for loop complete\n";
+
+        write "running for loop from 8 to 0, step 2\n";
+        for 9 > i >= 0 step 2 {
+            writeln i;
+        }
+        write "for loop complete\n";
+    }
+
+    void functionWithParams(int a, int b, int c) {
+        write "printing function parameters...\n";
+        write "a = "; writeln a;
+        write "b = "; writeln b;
+        write "c = "; writeln c;
+        write "complete\n";
+    }
+
+    void main() {
+        brian.age := 21;
+        nick.age  := 20;
+
+        age := 19;
+
+        brian.male := true;
+
+        printVariables();
+        runForLoops();
+
+        functionWithParams(3, age, brian.age);
+    }
+}
