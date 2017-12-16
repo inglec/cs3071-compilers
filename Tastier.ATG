@@ -383,22 +383,23 @@ Ident<out name>         (.  if (obj.type != new_type_instance)
                         .)
 )
 |
-"if"                    (.  int l1 = 0, l2; .)
+"if"                    (.  int nextCmpLabel = 0;
+                            int endLabel = gen.NewLabel();
+                        .)
 Expr<out reg,
      out type>          (.  if (type == boolean) {
-                                l1 = gen.NewLabel();
-                                gen.BranchFalse(l1);
+                                nextCmpLabel = gen.NewLabel();
+                                gen.BranchFalse(nextCmpLabel);
                             }
                             else SemErr("boolean type expected");
                         .)
-Stat                    (.  l2 = gen.NewLabel();
-                            gen.Branch(l2);
-                            gen.Label(l1);
+Stat                    (.  gen.Branch(endLabel);
+                            gen.Label(nextCmpLabel);
                         .)
 [
     "else"
     Stat
-]                       (.  gen.Label(l2); .)
+]                       (.  gen.Label(endLabel); .)
 |
 "while"                 (.  int l1, l2;
                             l1 = gen.NewLabel();
@@ -786,9 +787,8 @@ number                  (.  num2 += Convert.ToInt32(t.val);
     "step"              // Number to increment / decrement counter by
     number              (.  step = Convert.ToInt32(t.val); .)
 ]
-'{'
-{ Stat }
-'}'                     (.  Console.WriteLine("; Update counter.");
+Stat
+                        (.  Console.WriteLine("; Update counter.");
 
                             // Load counter into reg1
                             reg1 = gen.GetRegister();

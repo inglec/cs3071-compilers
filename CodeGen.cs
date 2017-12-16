@@ -79,12 +79,12 @@ public class CodeGenerator {
       Console.WriteLine("    B       L{0}",label);
    }
 
-// method to generate ARM assembly language code for branch on codition true instruction
+// method to generate ARM assembly language code for branch on condition true instruction
    public void BranchTrue(int label) {
       Console.WriteLine("    BNE     L{0}              ; jump on condition true", label);
    }
 
-// method to generate ARM assembly language code for branch on codition false instruction
+// method to generate ARM assembly language code for branch on condition false instruction
    public void BranchFalse(int label) {
       Console.WriteLine("    BEQ     L{0}              ; jump on condition false", label);
    }
@@ -116,7 +116,7 @@ public class CodeGenerator {
       Console.WriteLine("    MOV     R{0}, R{1}", r1, r2);
    }
 
-// method to generate ARM assembly laguage code to load local variable's address
+// method to generate ARM assembly language code to load local variable's address
    public void LoadLocalAddress(int llDelta, int offset) {
       if (llDelta == 0) { // variable is in current stack frame
          Console.WriteLine("    ADD     R2, BP, #16");
@@ -140,29 +140,29 @@ public class CodeGenerator {
       }
    }
 
-// method to generate ARM assembly laguage code to load local variable's value
+// method to generate ARM assembly language code to load local variable's value
    public void LoadLocalValue(int register, string name) {
       Console.WriteLine("    LDR     R{0}, [R2]        ; {1}", register, name);
    }
 
-// method to generate ARM assembly laguage code to load local variable
+// method to generate ARM assembly language code to load local variable
    public void LoadLocal(int register, int llDelta, int offset, string name) {
       LoadLocalAddress(llDelta, offset);
       LoadLocalValue(register, name);
    }
 
-// method to generate ARM assembly laguage code to store local variable's value
+// method to generate ARM assembly language code to store local variable's value
    public void StoreLocalValue(int register, string name) {
       Console.WriteLine("    STR     R{0}, [R2]        ; {1}", register, name);
    }
 
-// method to generate ARM assembly laguage code to store local variable
+// method to generate ARM assembly language code to store local variable
    public void StoreLocal(int register, int llDelta, int offset, string name) {
       LoadLocalAddress(llDelta, offset);
       StoreLocalValue(register, name);
    }
 
-// method to generate ARM assembly laguage code to load local indexed variable's address
+// method to generate ARM assembly language code to load local indexed variable's address
    public void LoadIndexedLocalAddress(int llDelta, int offset) {
       if (llDelta == 0) // variable is in current stack frame
          Console.WriteLine("    ADD     R2, BP, #16");
@@ -180,85 +180,85 @@ public class CodeGenerator {
       }
    }
 
-// method to generate ARM assembly laguage code to load local indexed variable's value
+// method to generate ARM assembly language code to load local indexed variable's value
    public void LoadIndexedLocalValue(int register, int index, string name) {
    // array elements are four bytes long
       Console.WriteLine("    LDR     R{0}, [R2, R{1}, LSL #2] ; value of {2}[]", register, index, name);
    }
 
-// method to generate ARM assembly laguage code to load local indexed variable
+// method to generate ARM assembly language code to load local indexed variable
    public void LoadIndexedLocal(int register, int llDelta, int offset, int index, string name) {
       LoadIndexedLocalAddress(llDelta, offset);
       LoadIndexedLocalValue(register, index, name);
    }
 
-// method to generate ARM assembly laguage code to store local indexed variable's value
+// method to generate ARM assembly language code to store local indexed variable's value
    public void StoreIndexedLocalValue(int register, int index, string name) {
    // array elements are four bytes long
       Console.WriteLine("    STR     R{0}, [R2, R{1}, LSL #2] ; value of {2}[]", register, index, name);
    }
 
-// method to generate ARM assembly laguage code to store local indexed variable
+// method to generate ARM assembly language code to store local indexed variable
    public void StoreIndexedLocal(int register, int llDelta, int offset, int index, string name) {
       LoadIndexedLocalAddress(llDelta, offset);
       StoreIndexedLocalValue(register, index, name);
    }
 
-// method to generate ARM assembly laguage code to load global variable's address
+// method to generate ARM assembly language code to load global variable's address
    public void LoadGlobalAddress(int address) {
       Console.WriteLine(" LDR R2, ={0}", address);
    // R4 holds base address for globals, scalar variables are four bytes long
       Console.WriteLine(" ADD R2, R4, R2, LSL #2");
    }
 
-// method to generate ARM assembly laguage code to load global variable's value
+// method to generate ARM assembly language code to load global variable's value
    public void LoadGlobalValue(int register, string name) {
    // R4 holds base address for globals, scalar variables are four bytes long
       Console.WriteLine(" LDR R{0}, [R2] ; {1}", register, name);
    }
 
-// method to generate ARM assembly laguage code to store global variable's value
+// method to generate ARM assembly language code to store global variable's value
    public void StoreGlobalValue(int register, string name) {
       Console.WriteLine(" STR R{0}, [R2] ; {1}", register, name);
    }
 
-// method to generate ARM assembly laguage code to load global variable
+// method to generate ARM assembly language code to load global variable
    public void LoadGlobal(int register, int address, string name) {
       LoadGlobalAddress(address);
       LoadGlobalValue(register, name);
    }
 
-// method to generate ARM assembly laguage code to store global variable
+// method to generate ARM assembly language code to store global variable
    public void StoreGlobal(int register, int address, string name) {
       LoadGlobalAddress(address);
       StoreGlobalValue(register, name);
    }
 
-// method to generate ARM assembly laguage code to load indexed global variable's address
+// method to generate ARM assembly language code to load indexed global variable's address
    public void LoadIndexedGlobalAddress(int address) {
       Console.WriteLine("    LDR     R2, ={0}", address);
       Console.WriteLine("    ADD     R2, R4, R2, LSL #2");
    }
 
-// method to generate ARM assembly laguage code to load global indexed variable's value
+// method to generate ARM assembly language code to load global indexed variable's value
    public void LoadIndexedGlobalValue(int register, int index, string name) {
    // R4 holds base address for globals, scalar variables and array elements are four bytes long
       Console.WriteLine("    LDR     R{0}, [R2, R{1}, LSL #2] ; value of {2}[]", register, index, name);
    }
 
-// method to generate ARM assembly laguage code to load global indexed variable
+// method to generate ARM assembly language code to load global indexed variable
    public void LoadIndexedGlobal(int register, int address, int index, string name) {
       LoadIndexedGlobalAddress(address);
       LoadIndexedGlobalValue(register, index, name);
    }
 
-// method to generate ARM assembly laguage code to store indexed global variable' value
+// method to generate ARM assembly language code to store indexed global variable' value
    public void StoreIndexedGlobalValue(int register, int index, string name) {
    // R4 holds base address for globals, scalar variables and array elements are four bytes long
       Console.WriteLine("    STR     R{0}, [R2, R{1}, LSL #2] ; value of {2}[]", register, index, name);
    }
 
-// method to generate ARM assembly laguage code to store indexed global variable
+// method to generate ARM assembly language code to store indexed global variable
    public void StoreIndexedGlobal(int register, int address, int index, string name) {
       LoadIndexedGlobalAddress(address);
       StoreIndexedGlobalValue(register, index, name);
