@@ -385,13 +385,13 @@ public class CodeGenerator {
       Console.WriteLine("    LDR     PC, [TOP]       ; return from {0}", name);
    }
 
-// method to generate ARM assembly language code to get a function argument
+// method to generate ARM assembly language code to get a function argument from the stack
     public void GetArg(int reg, int arg) {
         Console.WriteLine("    SUB     R1, BP, #{0}", (arg+1)*4);
         Console.WriteLine("    LDR     R{0}, [R1]      ; pop arg {1} from stack", reg, arg);
     }
 
-// method to generate ARM assembly language code to get a function argument
+// method to generate ARM assembly language code to push a register to the stack
     public void PushArg(int reg) {
         Console.WriteLine("    STR     R{0}, [TOP]      ; push function arg onto stack", reg);
         Console.WriteLine("    ADD     TOP, #4");
