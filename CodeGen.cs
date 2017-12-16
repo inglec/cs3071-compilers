@@ -36,7 +36,7 @@ public class CodeGenerator {
 //----- code generation methods -----
 
 // stack frame layout and pointer locations:
-//
+//                                          +
 //       *                         *
 // top ->*                         *
 //       * local variables         *
@@ -45,7 +45,7 @@ public class CodeGenerator {
 //       * static link (sl)        *
 //       * lexic level delta (lld) *
 // bp -> * return address          *
-//       ***************************
+//       ***************************        -
 //
 // dl - bp of calling procedure's frame for popping stack
 // sl - bp of enclosing procedure for addressing nonlocal variables
@@ -384,6 +384,18 @@ public class CodeGenerator {
       Console.WriteLine("    LDR     BP, [TOP,#12]   ; and stack base pointers");
       Console.WriteLine("    LDR     PC, [TOP]       ; return from {0}", name);
    }
+
+// method to generate ARM assembly language code to get a function argument
+    public void GetArg(int reg, int arg) {
+        Console.WriteLine("    SUB     R1, BP, #{0}", (arg+1)*4);
+        Console.WriteLine("    LDR     R{0}, [R1]      ; pop arg {1} from stack", reg, arg);
+    }
+
+// method to generate ARM assembly language code to get a function argument
+    public void PushArg(int reg) {
+        Console.WriteLine("    STR     R{0}, [TOP]      ; push function arg onto stack", reg);
+        Console.WriteLine("    ADD     TOP, #4");
+    }
 
 } // end CodeGenerator
 

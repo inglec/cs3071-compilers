@@ -220,10 +220,12 @@ MulOp<out Op op>
 
 /*-------------------------------------------------------------------------------------------*/
 
-ProcDecl<string progName>   (. string procName; .)
+ProcDecl<string progName>   (.  Obj procObj; string procName; int args = 0;
+                                int reg = gen.GetRegister();
+                            .)
 =
 "void"
-Ident<out procName>         (.  tab.NewObj(procName, proc, undef);
+Ident<out procName>         (.  procObj = tab.NewObj(procName, proc, undef);
                                 if (procName == "main") {
                                     if (tab.curLevel == 0)
                                         tab.mainPresent = true;
@@ -237,7 +239,33 @@ Ident<out procName>         (.  tab.NewObj(procName, proc, undef);
                                 }
                                 tab.OpenScope();
                             .)
-'(' ')' '{'
+'('                         // Create local vars from function args
+[                           (.  int type; string name; .)
+    Type<out type>
+    Ident<out name>         (.  tab.NewObj(name, var, type);
+                                args++;
+                            .)
+    {
+        ','
+        Type<out type>
+        Ident<out name>     (.  tab.NewObj(name, var, type);
+                                args++;
+                            .)
+    }
+]
+')' '{'                     (.  // Set values of new locals from stack
+                                procObj.args = args;
+                                Obj obj = tab.topScope.locals;
+                                Console.WriteLine("    ; Setting values of locals...");
+                                while (obj != null) {
+                                    // Get arg from stack and assign to local.
+                                    gen.GetArg(reg, --args);
+                                    gen.StoreLocal(reg, tab.curLevel-obj.level, obj.adr, obj.name);
+
+                                    obj = obj.next;
+                                }
+                                Console.WriteLine("    ; Locals set.");
+                            .)
 {
     ConstDecl
     |
@@ -377,7 +405,24 @@ Ident<out name>         (.  if (obj.type != new_type_instance)
     ]
     ';'
     |
-    '(' ')' ';'         (.  if (obj.kind == proc)
+    '('                         (.  int args = 0; .)
+    [                           // Function parameters
+        Primary<out reg,
+                out type>       (.  gen.PushArg(reg);
+                                    args++;
+                                .)
+        {
+            ','
+            Primary<out reg,
+                    out type>   (.  gen.PushArg(reg);
+                                    args++;
+                                .)
+        }
+    ]
+    ')' ';'             (.  if (args != obj.args)
+                                SemErr("function argument count does not match");
+
+                            if (obj.kind == proc)
                                 gen.Call(name);
                             else SemErr("object is not a procedure");
                         .)
@@ -519,7 +564,7 @@ Type<out int type>
  *    bool a, b;
  *    int arr[5][4];
  */
-VarDecl                         (.  string name; int type;
+VarDecl                         (.  String name; int type;
                                     int dims, size1, size2;   // Array-specific variables.
                                 .)
 =

@@ -12,9 +12,12 @@ namespace Tastier {
         public string instance;
 
         // Array attributes.
-        public int dims;    // dimensions of variable; 0 = scalar, 1 = 1D array, 2 = 2D array.
-        public int size1;   // size of 1st dim.
-        public int size2;   // size of 2nd dim.
+        public int dims = 0;    // dimensions of variable; 0 = scalar, 1 = 1D array, 2 = 2D array.
+        public int size1 = 0;   // size of 1st dim.
+        public int size2 = 0;   // size of 2nd dim.
+
+        // Function attributes
+        public int args = 0;
 
         // new type member variables
         public LinkedList<Obj> members;
@@ -125,7 +128,6 @@ namespace Tastier {
             obj.name = name;
             obj.kind = kind;
             obj.type = type;
-            obj.dims = 0;
             obj.level = curLevel;
             obj.next = null;
             obj.instance = instance;
