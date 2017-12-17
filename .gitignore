@@ -1,12 +1,9 @@
 /generated
 Coco.exe
-Codegen.cs
-Makefile
 Parser.frame
 Scanner.frame
 Tastier.cs
 Tastier.s
-TastierProgram.TAS
 TastierProgram - Copy.TAS
 TastierProject.s
 TastierProjectFooter.s
