@@ -267,6 +267,8 @@ Ident<out procName>         (.  procObj = tab.NewObj(procName, proc, undef);
                                     obj = obj.next;
                                 }
                                 Console.WriteLine("    ; Locals set.");
+
+                                gen.ClearRegisters();
                             .)
 {
     ConstDecl
