@@ -4,7 +4,7 @@ COMPILER Tastier
         var = 0, proc = 1, cons = 3;
 
     const int // types
-        undef = 0, integer = 1, boolean = 2, new_type = 3, new_type_instance = 4;
+        undef = 0, integer = 1, boolean = 2, new_data_type = 3, new_data_type_instance = 4;
 
     public SymbolTable tab;
     public CodeGenerator gen;
@@ -51,7 +51,7 @@ AddOp<out Op op>
 
 /*-------------------------------------------------------------------------------------------*/
 
-Expr<out int reg,       // load value of Expr into register
+Expr<out int reg,           // Load value of Expr into register
      out int type>      (. int typeR, regR; Op op; .)
 =
 SimExpr<out reg,
@@ -70,7 +70,7 @@ SimExpr<out reg,
 
 /*-------------------------------------------------------------------------------------------*/
 
-Primary<out int reg,        // Load Primary into register
+Primary<out int reg,            // Load Primary into register
         out int type>       (.  int n; Obj obj; string name;
                                 int dims = 0; int colReg = 7, indexReg = 8; // Array-specific variables.
 
@@ -81,27 +81,27 @@ Primary<out int reg,        // Load Primary into register
 (
     Ident<out name>             (.  obj = tab.Find(name); .)
     (
-        (                       // Access member variable of a new type
+        (                           // Access member variable of a new type
             '.'
-            Ident<out name>     (.  if (obj.type != new_type_instance)
+            Ident<out name>     (.  if (obj.type != new_data_type_instance)
                                         SemErr("new type instance expected.");
 
-                                    Obj member = tab.FindMember(obj, name);
-                                    if (member == null)
-                                        SemErr("instance member " + name + " does not exist.");
+                                    Obj member = tab.FindMember(obj, name); // Get member variable
+                                    if (member != null) {
+                                        type = member.type;
 
-                                    type = member.type;
-
-                                    if (member.level == 0)
-                                        gen.LoadGlobal(reg, member.adr, name);
-                                    else
-                                        gen.LoadLocal(reg, tab.curLevel-member.level, member.adr, name);
+                                        if (member.level == 0)
+                                            gen.LoadGlobal(reg, member.adr, name);
+                                        else
+                                            gen.LoadLocal(reg, tab.curLevel-member.level, member.adr, name);
+                                    }
+                                    else SemErr("instance member " + name + " does not exist.");
                                 .)
         )
         |
-        (                       // 1D array access
+        (
             [
-                '['
+                '['                 // 1D array access
                 Expr<out reg,
                      out type>  (.  dims = 1;
                                     if (type == integer) {
@@ -123,7 +123,10 @@ Primary<out int reg,        // Load Primary into register
                                         else SemErr("Integer type expected");
                                     .)
                 ]
-                ']'                 (.  if (dims == 1)
+                ']'                 (.  if (dims != obj.dims)
+                                            SemErr("Array dimensions do not match declaration");
+
+                                        if (dims == 1)
                                             gen.MoveRegister(indexReg, colReg);
                                     .)
             ]
@@ -185,8 +188,7 @@ Primary<out int reg,        // Load Primary into register
                         .)
     |
     '('
-    Expr<out reg,
-         out type>
+    Expr<out reg, out type>
     ')'
 )
 .
@@ -239,7 +241,7 @@ Ident<out procName>         (.  procObj = tab.NewObj(procName, proc, undef);
                                 }
                                 tab.OpenScope();
                             .)
-'('                         // Create local vars from function args
+'('                         // Create local vars from function args.
 [                           (.  int type; string name; .)
     Type<out type>
     Ident<out name>         (.  tab.NewObj(name, var, type);
@@ -253,7 +255,7 @@ Ident<out procName>         (.  procObj = tab.NewObj(procName, proc, undef);
                             .)
     }
 ]
-')' '{'                     (.  // Set values of new locals from stack
+')' '{'                     (.  // Set values of new locals from stack in reverse order.
                                 procObj.args = args;
                                 Obj obj = tab.topScope.locals;
                                 Console.WriteLine("    ; Setting values of locals...");
@@ -268,16 +270,11 @@ Ident<out procName>         (.  procObj = tab.NewObj(procName, proc, undef);
                             .)
 {
     ConstDecl
-    |
-    VarDecl
-    |
-    NewTypeDecl
-    |
-    NewTypeInstance
-    |
-    Stat
-    |
-    ProcDecl<procName>
+    | VarDecl
+    | NewDataTypeDecl
+    | NewDataTypeInstance
+    | Stat
+    | ProcDecl<procName>
 }
 '}'                         (.  if (procName == "main") {
                                     gen.StopProgram(progName);
@@ -296,17 +293,12 @@ Ident<out procName>         (.  procObj = tab.NewObj(procName, proc, undef);
 RelOp<out Op op>
 =                       (.  op = Op.EQU; .)
 (
-    "="
-    |
-    '<'                 (.  op = Op.LSS; .)
-    |
-    '>'                 (.  op = Op.GTR; .)
-    |
-    "!="                (.  op = Op.NEQ; .)
-    |
-    "<="                (.  op = Op.LEQ; .)
-    |
-    ">="                (.  op = Op.GEQ; .)
+    '='
+    | '<'               (.  op = Op.LSS; .)
+    | '>'               (.  op = Op.GTR; .)
+    | "!="              (.  op = Op.NEQ; .)
+    | "<="              (.  op = Op.LEQ; .)
+    | ">="              (.  op = Op.GEQ; .)
 )
 .
 
@@ -333,8 +325,8 @@ Stat                    (.  int type; string name; Obj obj; int reg, colReg = 7,
 =
 Ident<out name>         (.  obj = tab.Find(name); .)
 [
-'.'
-Ident<out name>         (.  if (obj.type != new_type_instance)
+    '.'                 // Set value of new data type instance member.
+    Ident<out name>     (.  if (obj.type != new_data_type_instance)
                                 SemErr("new type instance expected.");
 
                             obj = tab.FindMember(obj, name);
@@ -343,7 +335,7 @@ Ident<out name>         (.  if (obj.type != new_type_instance)
                         .)
 ]
 [
-    '['
+    '['                 // Set value of 1D array index.
     Expr<out reg,
          out type>      (.  int dims = 1;
                             if (type == integer)
@@ -351,7 +343,7 @@ Ident<out name>         (.  if (obj.type != new_type_instance)
                             else SemErr("Integer type expected");
                         .)
     [
-        ','
+        ','             // Set value of 2D array index.
         Expr<out reg,
              out type>  (.  dims = 2;
                             if (type == integer) {
@@ -363,11 +355,14 @@ Ident<out name>         (.  if (obj.type != new_type_instance)
                             else SemErr("Integer type expected");
                         .)
     ]
-    ']'                 (.  if (dims == 1)
+    ']'                 (.  if (dims != obj.dims)
+                                SemErr("Array dimensions do not match declaration");
+
+                            if (dims == 1)
                                 gen.MoveRegister(indexReg, colReg);
                         .)
 ]
-(
+(                       // Assign value to var
     ":="                (.  if (obj.kind == proc)
                                 SemErr("cannot assign to procedure");
                         .)
@@ -386,7 +381,7 @@ Ident<out name>         (.  if (obj.type != new_type_instance)
                             }
                             else SemErr("incompatible types");
                         .)
-    [
+    [                   // Ternary operator
         '?'				(.	int l1 = 0, l2;
 							if (type == boolean) {
 								l1 = gen.NewLabel();
@@ -509,7 +504,13 @@ Expr<out reg,
 ';'
 |
 '{'                     (.  tab.OpenSubScope(); .)
-{ ConstDecl | VarDecl | NewTypeDecl | NewTypeInstance | Stat }
+{
+    ConstDecl
+    | VarDecl
+    | NewDataTypeDecl
+    | NewDataTypeInstance
+    | Stat
+}
 '}'                     (.  tab.CloseSubScope(); .)
 |
 Switch
@@ -522,7 +523,12 @@ Tastier                 (.  string progName; .)
 "program"
 Ident<out progName>     (.  tab.OpenScope(); .)
 '{'
-{ ConstDecl | VarDecl | NewTypeDecl | NewTypeInstance } // Globals
+{   // Globals
+    ConstDecl
+    | VarDecl
+    | NewDataTypeDecl
+    | NewDataTypeInstance
+}
 { ProcDecl<progName> }
 '}'                     (.  tab.CloseScope(); .)
 .
@@ -626,7 +632,7 @@ Ident<out name>
 /**
  * Determine the dimensions of an array.
  *
- * [10]   => dims = 1, size1 = 5, size2 = 0
+ * [10]   => dims = 1, size1 = 10, size2 = 0
  * [5, 2] => dims = 2, size1 = 5, size2 = 2
  */
 ArrayDecl<out int dims,
@@ -766,7 +772,7 @@ number                  (.  num1 += Convert.ToInt32(t.val); .)
         )
     )
 )
-Ident<out name>         (.  // Set counter variable to num1
+Ident<out name>         (.  // Store num1 in counter variable.
                             obj = tab.Find(name);
                             if (obj.type == integer) {
                                 reg1 = gen.GetRegister();
@@ -802,19 +808,20 @@ Ident<out name>         (.  // Set counter variable to num1
         )
     )
 )
-number                  (.  num2 += Convert.ToInt32(t.val);
+number                  (.  // Compare counter to num2 on each iteration.
+                            num2 += Convert.ToInt32(t.val);
 
                             Console.WriteLine("; Start of for loop.");
                             int startLabel = gen.NewLabel();
                             gen.Label(startLabel);
 
-                            reg1 = gen.GetRegister(); // Store counter
+                            reg1 = gen.GetRegister(); // Load counter
                             if (obj.level == 0)
                                 gen.LoadGlobal(reg1, obj.adr, name);
                             else
                                 gen.LoadLocal(reg1, tab.curLevel-obj.level, obj.adr, name);
 
-                            reg2 = gen.GetRegister(); // Store num2
+                            reg2 = gen.GetRegister(); // Load num2
                             gen.LoadConstant(reg2, num2);
 
                             int endLabel = gen.NewLabel();
@@ -835,14 +842,14 @@ number                  (.  num2 += Convert.ToInt32(t.val);
 Stat
                         (.  Console.WriteLine("; Update counter.");
 
-                            // Load counter into reg1
+                            // Load counter
                             reg1 = gen.GetRegister();
                             if (obj.level == 0)
                                 gen.LoadGlobal(reg1, obj.adr, name);
                             else
                                 gen.LoadLocal(reg1, tab.curLevel-obj.level, obj.adr, name);
 
-                            // Load step into reg
+                            // Load step
                             int temp = gen.GetRegister();
                             gen.LoadConstant(temp, step);
 
@@ -852,7 +859,7 @@ Stat
                             else
                                 gen.AddOp(Op.SUB, reg1, temp);
 
-                            // Store reg back into counter
+                            // Update counter
                             if (obj.level == 0)
                                 gen.StoreGlobal(reg1, obj.adr, name);
                             else
@@ -877,17 +884,17 @@ Stat
  *       bool male;
  *    }
  */
-NewTypeDecl
+NewDataTypeDecl
 =
-"type"                              (.  string name, var_name; int type; .)
-Ident<out name>                     (.  Obj type_obj = tab.NewObj(name, var, new_type); .) // New data type.
+"type"                      (.  string name, var_name; int type; .)
+Ident<out name>             (.  Obj type_obj = tab.NewObj(name, var, new_data_type); .) // New data type.
 '{'
 {
-    Type<out type>                  // Define member variables of new data type.
-    Ident<out var_name>             (.  tab.NewMemberObj(type_obj, var_name, var, type); .)
+    Type<out type>              // Define member variables of new data type.
+    Ident<out var_name>     (.  tab.NewMemberObj(type_obj, var_name, var, type); .)
     {
         ','
-        Ident<out var_name>         (.  tab.NewMemberObj(type_obj, var_name, var, type); .)
+        Ident<out var_name> (.  tab.NewMemberObj(type_obj, var_name, var, type); .)
     }
     ';'
 }
@@ -906,14 +913,14 @@ Ident<out name>                     (.  Obj type_obj = tab.NewObj(name, var, new
  *
  *    new Person stephen, david, brian;
  */
-NewTypeInstance         (.  string new_type, instance; .)
+NewDataTypeInstance     (.  string new_data_type, instance; .)
 =
 "new"
-Ident<out new_type>     // User-defined data type, defined prior to now.
-Ident<out instance>     (.  tab.NewInstance(new_type, instance); .)
+Ident<out new_data_type>    // User-defined data type, defined prior to now.
+Ident<out instance>     (.  tab.NewInstance(new_data_type, instance); .)
 {
     ','
-    Ident<out instance> (.  tab.NewInstance(new_type, instance); .)
+    Ident<out instance> (.  tab.NewInstance(new_data_type, instance); .)
 }
 ';'
 .

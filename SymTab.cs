@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 
 namespace Tastier {
     public class Obj { // properties of declared symbol
@@ -9,7 +8,6 @@ namespace Tastier {
 
         // Constant attributes.
         public int value;   // value if kind == constant
-        public string instance;
 
         // Array attributes.
         public int dims = 0;    // dimensions of variable; 0 = scalar, 1 = 1D array, 2 = 2D array.
@@ -17,10 +15,7 @@ namespace Tastier {
         public int size2 = 0;   // size of 2nd dim.
 
         // Function attributes
-        public int args = 0;
-
-        // new type member variables
-        public LinkedList<Obj> members;
+        public int args = 0; // Number of function parameters.
 
         public int level;   // lexic level: 0 = global; >= 1 local
         public int adr;     // address (displacement) in scope
@@ -39,8 +34,8 @@ namespace Tastier {
         String[] kinds = {"var", "proc", "scope", "const"};  //String representation of values.
 
         // variable / constant types
-        const int undef = 0, integer = 1, boolean = 2, new_type = 3, new_type_instance = 4;
-        String[] types = {"undef", "int", "bool", "new type", "new type instance"};  //String representation of values.
+        const int undef = 0, integer = 1, boolean = 2, new_data_type = 3, new_data_type_instance = 4;
+        String[] types = {"undef", "int", "bool", "new data type", "new data type instance"};  //String representation of values.
 
         public Obj topScope; // topmost procedure scope
         public int curLevel; // nesting level of current scope
@@ -85,7 +80,7 @@ namespace Tastier {
         // close current scope
         public void CloseScope() {
             //Print scope locals to console with their kind, type and name.
-            Console.WriteLine(";End of Scope (lvl " + curLevel + ")."); //Print level of scope.
+            Console.WriteLine("; End of Scope (lvl " + curLevel + ")."); //Print level of scope.
             Obj current = topScope.locals;
             while (current != null) {
                 Console.WriteLine(";  " + kinds[current.kind] + " " + types[current.type] + " " + current.name);
@@ -120,75 +115,93 @@ namespace Tastier {
 
         // create new object node in current scope
         public Obj NewObj(string name, int kind, int type) {
-            return NewObj(name, kind, type, "");
+            return NewObj(name, kind, type, false); // Create a var within current scope
         }
 
-        public Obj NewObj(string name, int kind, int type, string instance) {
+        public Obj NewObj(string name, int kind, int type, bool memberVar) {
             Obj obj = new Obj();
             obj.name = name;
             obj.kind = kind;
             obj.type = type;
             obj.level = curLevel;
             obj.next = null;
-            obj.instance = instance;
 
-            Obj p = topScope.locals;
+            Obj curr = topScope.locals;
             Obj last = null;
-            while (p != null) {
-                if (p.name == name && p.instance == instance)
-                    parser.SemErr("name declared twice");
-                last = p;
-                p = p.next;
+            while (curr != null) {
+                if (curr.name == name)
+                    parser.SemErr(name + " declared twice");
+                last = curr;
+                curr = curr.next;
             }
 
-            //Add new object to end of linked list locals
-            if (last == null)
-                topScope.locals = obj;
-            else
-                last.next = obj;
+            // Don't add member variables to scope's locals
+            if (!memberVar) {
+                //Add new object to end of linked list locals
+                if (last == null)
+                    topScope.locals = obj;
+                else
+                    last.next = obj;
+            }
 
-            //set variable address to next free stack address
+            // Set variable address to next free stack address
             if (kind == var)
                 obj.adr = topScope.nextAdr++;
-
-            if (type == new_type)
-                obj.members = new LinkedList<Obj>();
 
             return obj;
         }
 
         /**
-         * Add a member object to the new type
+         * Add a member object to the new data type
          */
         public Obj NewMemberObj(Obj obj, string name, int kind, int type) {
-            Obj member = NewObj(name, kind, type, obj.name);
-            obj.members.AddLast(member);   // Push new member to end of linked list.
+            Obj member = NewObj(name, kind, type, true);
+
+            // Add new member var to end of linked list
+            if (obj.locals == null) {
+                obj.locals = member;
+            }
+            else {
+                Obj curr = obj.locals;
+                Obj last = null;
+                while (curr != null) {
+                    if (curr.name == member.name && obj.type == new_data_type)
+                        parser.SemErr(member.name + " declared twice within new data type " + obj.name);
+
+                    last = curr;
+                    curr = curr.next;
+                }
+                last.next = member;
+            }
 
             return member;
         }
 
-        public Obj NewInstance(string new_type, string instance) {
-            Obj typeObj = Find(new_type);
+        public Obj NewInstance(string new_data_type, string instance) {
+            Obj newDataType = Find(new_data_type);
 
-            Obj obj = NewObj(instance, var, new_type_instance);
+            // Create new instance of new data type.
+            Obj obj = NewObj(instance, var, new_data_type_instance);
 
-            // Copy members from new type to instance.
-            obj.members = new LinkedList<Obj>();
-            foreach (Obj member in typeObj.members) {
-                Obj copy = NewObj(member.name, member.kind, member.type, instance);
-                copy.level = obj.level; // Give locals same scope as instance
-                obj.members.AddLast(copy);
+            // Copy members from new data type to instance.
+            Obj member = newDataType.locals;
+            while (member != null) {
+                NewMemberObj(obj, member.name, member.kind, member.type);
+                member = member.next;
             }
 
             return obj;
         }
 
+        // Create a new constant with a value.
         public Obj NewConst(string name, int type, int value) {
             Obj obj = NewObj(name, constant, type);
             obj.value = value;
+
             return obj;
         }
 
+        // Add extra necessary fields to predefined array object.
         public void CreateArray(Obj obj, int dims, int size1, int size2) {
             obj.dims = dims;
             obj.size1 = size1;
@@ -202,12 +215,11 @@ namespace Tastier {
 
         // search for name in open scopes and return its object node
         public Obj Find(string name) {
-            Obj obj;
             Obj scope = topScope;
             while (scope != null) { // for all open scopes
-                obj = scope.locals;
+                Obj obj = scope.locals;
                 while (obj != null) { // for all objects in this scope
-                    if (obj.name == name && obj.instance == "")
+                    if (obj.name == name)
                         return obj;
                     obj = obj.next;
                 }
@@ -217,12 +229,16 @@ namespace Tastier {
             return undefObj;
         }
 
+        // Searches a new data type instance for a member variable
         public Obj FindMember(Obj instance, string name) {
-            foreach (Obj member in instance.members)
-                if (name == member.name)
+            Obj member = instance.locals;
+            while (member != null) {
+                if (member.name == name)
                     return member;
+                member = member.next;
+            }
 
-            return null;
+            return null; // Member var does not exist.
         }
 
     } // end SymbolTable

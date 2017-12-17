@@ -10,12 +10,15 @@ program Test {
 
     int age;
 
+    int arr[5, 4];
+
     void printVariables() {
         write "x = ";          writeln x;
         write "brian.age = ";  writeln brian.age;
         write "nick.age = ";   writeln nick.age;
         write "age = ";        writeln age;
         write "brian.male = "; writeln brian.male;
+        write "arr[2, 3] = ";  writeln arr[2, 3];
     }
 
     void runForLoops() {
@@ -52,6 +55,7 @@ program Test {
         nick.age  := 20;
 
         age := 19;
+        arr[2, 3] := 5;
 
         brian.male := true;
 
